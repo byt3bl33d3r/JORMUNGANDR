@@ -1,0 +1,3 @@
+[submodule "jormungandr/MemoryModule"]
+	path = jormungandr/MemoryModule
+	url = https://github.com/fancycode/MemoryModule
