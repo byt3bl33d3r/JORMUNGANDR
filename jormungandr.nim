@@ -1,5 +1,8 @@
-import jormungandr/py_lib_memory
+import jormungandr/python
 
-when isMainModule:
-    initPyLibfromMemoryIfNeeded()
-    echo "Yes!"
+runSimpleString("import os; print(os.getcwd())")
+
+#createPyDict()
+
+echo "--------"
+echo "Finished"
