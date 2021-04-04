@@ -1,3 +1,13 @@
+#[
+    References:
+        - https://docs.python.org/3/extending/embedding.html
+        - https://python.readthedocs.io/en/stable/extending/extending.html
+        - https://github.com/pyinstaller/pyinstaller/blob/21f0c5fe7158b31de9937e5ecb09c9c7c75bb312/bootloader/src/pyi_pythonlib.c#L434
+        - https://github.com/python/cpython/blob/master/Programs/_testembed.c
+        - https://github.com/n1nj4sec/pupy/tree/d82ebd43545d0b4247fce2e8e5154f466f354d4e/client/common
+
+]#
+
 import http
 import utils
 import memorymodule
