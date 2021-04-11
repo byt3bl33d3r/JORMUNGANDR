@@ -22,6 +22,7 @@ import md5
 
 type
     wchar_t {.importc.} = object
+    #[
     Py_ssize_t = int
     PPyObject = distinct pointer
     PyObject = ref object
@@ -63,9 +64,10 @@ type
 
         m_clear*: pointer
         m_free*: pointer
-
-
-let TMPDIR = os.getEnv("LOCALAPPDATA") 
+]#
+let
+    TMPDIR = os.getEnv("LOCALAPPDATA") 
+    pythonStdlibPath = TMPDIR / fmt"{toMD5(getMacAddr())}.zip"
 
 proc isPythonLibHandleinMemory(h: HMEMORYMODULE): bool {.inline.} =
     let s = MemoryGetProcAddress(h, "PyModule_AddObject")
@@ -88,8 +90,9 @@ when defined(stageless):
 else:
     var STDLIB, MODULE: string
 
-    let archive = ZipArchive()
-    let dataStream = newStringStream(http_get_request(URL))
+    let
+        archive = ZipArchive()
+        dataStream = newStringStream(http_get_request(URL))
 
     archive.open(dataStream)
 
@@ -126,6 +129,7 @@ let
     PySys_SetPath = cast[proc(path: pointer){.pyfunc.}](MemoryGetProcAddress(hPython, "PySys_SetPath"))
     Py_DecodeLocale = cast[proc(str: cstring, size: csize_t): ptr wchar_t {.pyfunc.}](MemoryGetProcAddress(hPython, "Py_DecodeLocale"))
     Py_SetStandardStreamEncoding = cast[proc(encoding, errors: cstring): int {.pyfunc.}](MemoryGetProcAddress(hPython, "Py_SetStandardStreamEncoding"))
+    #[
     PyEval_GetBuiltins = cast[proc(): PPyObject {.pyfunc.}](MemoryGetProcAddress(hPython, "PyEval_GetBuiltins"))
     PyDict_New = cast[proc(): PPyObject {.pyfunc.}](MemoryGetProcAddress(hPython, "PyDict_New"))
     PyUnicode_FromStringAndSize = cast[proc(u: cstring, size: Py_ssize_t): PPyObject {.pyfunc.}](MemoryGetProcAddress(hPython, "PyUnicode_FromStringAndSize"))
@@ -134,6 +138,7 @@ let
     PyImport_AppendInittab = cast[proc(name: cstring, initfuncPtr: PPyObject) : cint {.pyfunc.}](MemoryGetProcAddress(hPython, "PyImport_AppendInittab"))
     PyModule_Create = cast[proc(def: pointer): PPyObject {.pyfunc.}](MemoryGetProcAddress(hPython, "PyModule_Create"))
     Py_DECREF = cast[proc(o: PPyObject){.pyfunc.}](MemoryGetProcAddress(hPython, "Py_DECREF"))
+    ]#
 
 var
     Py_FileSystemDefaultEncoding = MemoryGetProcAddress(hPython, "Py_FileSystemDefaultEncoding")
@@ -154,7 +159,6 @@ proc extractStdlib*(path: string) =
 
 proc runSimpleString*(script: cstring, name: string = "JORMUNGANDR") = 
     let
-        pythonStdlibPath = TMPDIR / fmt"{toMD5(getMacAddr())}.zip"
         program = Py_DecodeLocale(name, 0)
         resource_path = Py_DecodeLocale(pythonStdlibPath, 0)
         python_home = Py_DecodeLocale("", 0)
@@ -195,6 +199,7 @@ proc runSimpleString*(script: cstring, name: string = "JORMUNGANDR") =
 
     PyMem_RawFree(program)
 
+#[
 proc createPyDict*() =
     echo "Creating"
     echo PyDict_New.isNil
@@ -212,3 +217,4 @@ proc createPyDict*() =
     echo "DECREF"
     Py_DECREF(k)
     Py_DECREF(v)
+]#

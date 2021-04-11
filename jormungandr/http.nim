@@ -7,6 +7,8 @@
 
 import winim/lean
 import winim/inc/winhttp
+import strformat
+import streams
 
 proc safeStringSlice(n: LPCWSTR, l: DWORD): LPCWSTR =
     var
@@ -25,12 +27,17 @@ proc http_get_request*(url: string): string =
         flags: DWORD = WINHTTP_FLAG_BYPASS_PROXY_CACHE or WINHTTP_FLAG_SECURE
         ieConfig: WINHTTP_CURRENT_USER_IE_PROXY_CONFIG
         proxyInfo: WINHTTP_PROXY_INFO
+        dwSize, dwDownloaded: DWORD = 0
+        pszOutBuffer: LPSTR
+        bResults: bool
+        totalDownloaded: int
+        dataBuffer: StringStream = newStringStream("")
 
     echo "+ Attempting HTTP GET request to: " & url
 
     hSession = WinHttpOpen("JORMUNGANDR", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0)
     if hSession.isNil:
-        httpRequestException("hSession is null")
+        httpRequestException("Creating hSession returned an error: " & $GetLastError())
 
     zeroMem(addr bits, sizeof(bits))
     bits.dwStructSize = cast[DWORD](sizeof(bits))
@@ -48,13 +55,11 @@ proc http_get_request*(url: string): string =
     echo "* [HTTP] Hostname: ", actual_hostname
     echo "* [HTTP] URL Path: ", bits.lpszUrlPath
 
-    hConnect = WinHttpConnect(hSession, actual_hostname, bits.nPort, 0)
-    if hConnect.isNil:
-        httpRequestException("hConnect is null")
+    if not hSession.isNil:
+        hConnect = WinHttpConnect(hSession, actual_hostname, bits.nPort, 0)
 
-    hReq = WinHttpOpenRequest(hConnect, "GET", bits.lpszUrlPath, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags)
-    if hReq.isNil:
-        httpRequestException("hReq is null")
+    if not hConnect.isNil:
+        hReq = WinHttpOpenRequest(hConnect, "GET", bits.lpszUrlPath, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags)
 
     if WinHttpGetIEProxyConfigForCurrentUser(addr ieConfig):
         echo "* [PROXY] Got IE Configuration"
@@ -84,7 +89,7 @@ proc http_get_request*(url: string): string =
             WinHttpGetProxyForUrl(hSession, bits.lpszUrlPath, addr autoProxyOpts, addr proxyInfo)
 
         elif not ieConfig.lpszProxy.isNil:
-            echo "* [PROXY] IE config set to proxy %s with bypass %s", ieConfig.lpszProxy, ieConfig.lpszProxyBypass
+            echo fmt"* [PROXY] IE config set to proxy {ieConfig.lpszProxy} with bypass {ieConfig.lpszProxyBypass}" 
 
             proxyInfo.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY
             proxyInfo.lpszProxy = ieConfig.lpszProxy
@@ -95,23 +100,34 @@ proc http_get_request*(url: string): string =
 
     WinHttpSetOption(hReq, WINHTTP_OPTION_PROXY, addr proxyInfo, cast[DWORD](sizeof(WINHTTP_PROXY_INFO)))
 
-    if WinHttpSendRequest(hReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0).bool:
-        if WinHttpReceiveResponse(hReq, NULL).bool:
-            var 
-                dwSize, dwDownloaded: DWORD
-                dataBuffer: string = ""
+    if not hReq.isNil:
+        bResults = WinHttpSendRequest(hReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0)
 
-            while true:
-                WinHttpQueryDataAvailable(hReq, addr dwSize)
-                if dwSize == 0:
-                    break
+    if bResults:
+        bResults = WinHttpReceiveResponse(hReq, NULL)
 
-                var pszOutBuffer: cstring = newString(dwSize)
-                echo "* Receiving data: ", dwSize
-                if not WinHttpReadData(hReq, addr pszOutBuffer[0], dwSize, addr dwDownloaded).bool:
-                    httpRequestException("Error receiving data")
+    if bResults:
+        while true:
+            if not WinHttpQueryDataAvailable(hReq, addr dwSize).bool:
+                httpRequestException("Error in WinHttpQueryDataAvalable: " & $GetLastError())
 
-                dataBuffer = $dataBuffer & $pszOutBuffer
+            if dwSize == 0:
+                break
 
-            echo "+ Total data received: ", len(dataBuffer)
-            return dataBuffer
+            pszOutBuffer = newString(dwSize+1)
+            zeroMem(pszOutBuffer, dwSize+1)
+
+            if not WinHttpReadData(hReq, addr pszOutBuffer[0], dwSize, addr dwDownloaded).bool:
+                httpRequestException("Error receiving data: " & $GetLastError())
+
+            dataBuffer.writeData(addr pszOutBuffer[0], dwDownloaded)
+            totalDownloaded += dwDownloaded
+
+        echo "+ Total data received: ", totalDownloaded
+
+        WinHttpCloseHandle(hReq)
+        WinHttpCloseHandle(hConnect)
+        WinHttpCloseHandle(hSession)
+
+        dataBuffer.setPosition(0)
+        return dataBuffer.readAll()
