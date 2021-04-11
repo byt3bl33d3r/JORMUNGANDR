@@ -9,18 +9,12 @@ import winim/lean
 import winim/inc/winhttp
 import strformat
 import streams
-
-proc safeStringSlice(n: LPCWSTR, l: DWORD): LPCWSTR =
-    var
-        nim_string = $n
-        nim_int = l-1
-
-    return nim_string[.. nim_int]
+import utils
 
 proc httpRequestException(msg: string) =
     raise newException(ValueError, "Error when performing HTTP request: " & $msg)
 
-proc http_get_request*(url: string): string =
+proc httpGetRequest*(url: string): string =
     var
         bits: URL_COMPONENTS
         hSession, hConnect, hReq: HINTERNET

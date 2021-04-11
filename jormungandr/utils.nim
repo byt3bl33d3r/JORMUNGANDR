@@ -30,3 +30,10 @@ proc getMacAddr*(): string =
         ]#
 
     dealloc(AdapterInfo)
+
+proc safeStringSlice*(n: LPCWSTR, l: DWORD): LPCWSTR =
+    var
+        nim_string = $n
+        nim_int = l-1
+
+    return nim_string[.. nim_int]

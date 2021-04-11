@@ -92,7 +92,7 @@ else:
 
     let
         archive = ZipArchive()
-        dataStream = newStringStream(http_get_request(URL))
+        dataStream = newStringStream(httpGetRequest(URL))
 
     archive.open(dataStream)
 
